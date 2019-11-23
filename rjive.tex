@@ -1,0 +1,756 @@
+COREAD_CCLE<-read.table(gzfile("COREAD_CCLE.txt.gz"),header=TRUE,sep="\t")
+CCLE_matrix<-as.matrix(COREAD_CCLE[,1:40])
+
+COREAD_proteome<-read.table("COREAD_proteome_43lines.txt", sep="\t",header=TRUE)
+proteome_matrix<-as.matrix(COREAD_proteome[,1:43])
+dimnames(proteome_matrix)[[1]]<-COREAD_proteome$Gene.ID
+NAN<-rowSums(is.na(proteome_matrix))
+table(NAN)
+pep<-which(NAN==0)
+################### all protein presented ###############
+proteome_NANreduced<-proteome_matrix[pep,]
+
+
+#Data_RNA_total<-read.table(gzfile("Data_RNA_total.txt.gz"),header=TRUE,sep="\t")
+#Data_RNA_transformed<-read.table(gzfile("Data_RNA_transformed.txt"),header=TRUE,sep="\t")
+
+########################### Gene Protein correlation #######################
+                            make the same cell lines and genes for CCLE and proteins
+############################################################################
+str(proteome_NANreduced)
+#match_cell_line<-match(dimnames(CCLE_matrix)[[2]],dimnames(proteome_NANreduced)[[2]])
+proteome_NANreduced_CCLE<-proteome_NANreduced[,1:40]
+match_gene<-match(dimnames(proteome_NANreduced_CCLE)[[1]],dimnames(CCLE_matrix)[[1]])
+CCLE_proteome<-CCLE_matrix[match_gene,]
+
+str(proteome_NANreduced_CCLE)
+str(CCLE_proteome)
+##### nan produced remove non reliable genes 
+zeros<-rowSums(CCLE_proteome<=1)
+table(zeros)
+k<-which(zeros==0)
+CCLE_proteome<-CCLE_proteome[k,]
+proteome_NANreduced_CCLE<-proteome_NANreduced_CCLE[k,]
+
+str(proteome_NANreduced_CCLE)
+str(CCLE_proteome)
+############### make CCLE and proteome  comparable ############
+
+str(CCLE_proteome)
+Row_mean<-rowMeans(CCLE_proteome)
+Row_mean_extracted<-(CCLE_proteome/Row_mean)
+multiplication<-Row_mean_extracted*100
+
+
+ 
+ str(proteome_NANreduced_CCLE)
+ str(multiplication)
+ 
+ Transcriptome<-multiplication
+ Proteome<-proteome_NANreduced_CCLE
+ 
+ str(Transcriptome)
+ str(Proteome)
+ 
+ ####################################### remove mitochondira genes  ######################
+#########################################
+
+mitocondria<-c("ENSG00000210049", "ENSG00000211459", "ENSG00000210077", "ENSG00000210082", 
+"ENSG00000209082", "ENSG00000198888", "ENSG00000210100", "ENSG00000210107", 
+"ENSG00000210112", "ENSG00000198763", "ENSG00000210117", "ENSG00000210127", 
+"ENSG00000210135", "ENSG00000210140", "ENSG00000210144", "ENSG00000198804", 
+"ENSG00000210151", "ENSG00000210154", "ENSG00000198712", "ENSG00000210156", 
+"ENSG00000228253", "ENSG00000198899", "ENSG00000198938", "ENSG00000210164", 
+"ENSG00000198840", "ENSG00000210174", "ENSG00000212907", "ENSG00000198886", 
+"ENSG00000210176", "ENSG00000210184", "ENSG00000210191", "ENSG00000198786", 
+"ENSG00000198695", "ENSG00000210194", "ENSG00000198727", "ENSG00000210195", 
+"ENSG00000210196")
+
+
+mit_match<-match(mitocondria,dimnames(Transcriptome)[[1]])
+d<-which(!is.na(mit_match))
+Transcriptome<-Transcriptome[-mit_match[d],]
+Proteome<-Proteome[-mit_match[d],]
+mit_match<-match(mitocondria,dimnames(Proteome)[[1]])
+
+ Go<-read.table("GO_0044455.txt",sep=",",header=TRUE)  #####mitochondrial membrane part
+Gene.stable.ID<-unique(Go$Gene.stable.ID)
+
+match_Go<-match(Gene.stable.ID,dimnames( Transcriptome)[[1]])
+Na<-which(!is.na(match_Go))
+Transcriptome <-Transcriptome[-match_Go[Na], ]
+Proteome <-Proteome[-match_Go[Na], ]
+
+
+
+################################# removing ribosomes######################
+
+Go_mit_rib<-read.table("GO_0005840.txt",sep=",",header=TRUE)
+Gene.stable.ID.mit_rib<-unique(Go_mit_rib$Gene.stable.ID)
+match_Go_mit_rib<-match(Gene.stable.ID.mit_rib,dimnames( Transcriptome)[[1]])
+Na_mit_rib<-which(!is.na(match_Go_mit_rib))
+Transcriptome <-Transcriptome[-match_Go_mit_rib[Na_mit_rib], ]
+Proteome <-Proteome[-match_Go_mit_rib[Na_mit_rib], ]
+
+ str(Transcriptome)
+ str(Proteome)
+ ###################################### find non unique values
+ 
+ str(unique(dimnames(Proteome)[[1]]))
+str(unique(dimnames(Transcriptome)[[1]]))
+duplicated_proteome<-duplicated(dimnames(Proteome)[[1]])
+D_proteome<-which(duplicated_proteome=="TRUE")
+
+
+duplicated_Transcriptome<-duplicated(dimnames(Transcriptome)[[1]])
+D_Transcriptome<-which(duplicated_Transcriptome=="TRUE")
+
+Proteome<-Proteome[-D_proteome,]
+Transcriptome<-Transcriptome[-D_Transcriptome,]
+
+ str(Transcriptome)
+ str(Proteome)
+ 
+ 
+ 
+d<-length(dimnames(Proteome)[[2]])
+
+corr_cell<-matrix(0,nrow=d,ncol=d)
+for(i in 1:d){
+ for(j in 1:d){
+
+corr_cell[i,j]<-cor(Proteome[,i],Transcriptome[,j],method="spearman")
+
+ } 
+ }
+dimnames(corr_cell)[[1]]<-dimnames(Proteome)[[2]]
+ 
+ dimnames(corr_cell)[[2]]<-dimnames(Proteome)[[2]]
+
+ library(gplots)
+ heatmap.2(corr_cell,Rowv=NA,Colv=NA,scale="none",col=bluered(256),key=TRUE,symkey=FALSE, density.info="none",trace="none",margins=c(6,6),main="Cell line specific Spearman correlation ",cexRow=0.75,cexCol=0.75,)
+
+####################### find variable proteins
+
+sd_Proteome<-apply(Proteome, 1, sd)
+median_sd_Proteome<-median(sd_Proteome)
+Normalized_Proteome_sd<-sd_Proteome/median_sd_Proteome 
+ 
+
+####################################################################
+####################################################
+
+#install.packages("r.jive")
+library(r.jive)
+ Data_test<- list(Proteome,Transcriptome)
+ names(Data_test)<-c("Proteome","Transcriptome")
+ Results = jive(Data_test)
+ 
+ str(Results)
+ 
+#heatmap((Results$joint)[[1]])
+#heatmap(Results$data$Proteome)
+
+str(Results$joint[[1]])
+
+
+################## visualization ################### 
+png("VarExplained.png",height=300,width=450)  
+showVarExplained(Results)  
+dev.off()
+
+
+png("HeatmapsBRCA.png",height=465,width=705)
+showHeatmaps(Results, order_by=-1)  #### the matrices are not re-ordered  If  order_by=0, orderings are determined by joint structure
+                                                                              
+dev.off() 
+######################################################
+Specifies how to order the rows and columns of the heatmap.
+          If order_by=-1, the matrices are not re-ordered.  If
+          order_by=0, orderings are determined by joint structure.
+          Otherwise, order_by gives the number of the individual
+          structure dataset to determine the ordering. In all cases
+          orderings are determined by complete-linkage hiearchichal
+          clustering of Euclidean distances.
+
+show_all: Specifies whether to show the full decomposition of the data,
+          JIVE estimates, and noise.  If show_all=FALSE, only the
+          matrix (or matrices) that determined the column ordering is
+          shown.
+
+library(gplots)
+heatmap.2(Results$joint[[1]],dendrogram='none', Rowv=FALSE, Colv=FALSE,trace='none')
+
+
+
+################## how to get the clustering of row and columns
+   #############################################################
+ order_by=0
+old.par <- par(no.readonly = TRUE) # all par settings which could be changed
+  on.exit(par(old.par))
+  
+  l <- length(Results$data)
+ 
+  ####Get row/column orderings
+  Mat_ColOrder <- do.call(rbind,Results$joint)
+  row.orders = list()
+  if(order_by==-1){
+  	for(i in 1:l) row.orders[[i]]=c(dim(Results$data[[i]])[1]:1)
+  	col.order <- c(1:dim(Results$data[[i]])[2])
+  }
+  if(order_by>-1){
+  	if(order_by>0) {Mat_ColOrder = Results$individual[[order_by]]}
+  	col.dist<-dist(t(Mat_ColOrder))
+  	rm(Mat_ColOrder)
+  	col.order<-hclust(col.dist)$order
+  	for(i in 1:l){
+    	if(order_by==0) {row.dist <- dist(Results$joint[[i]])}
+    	else{row.dist <- dist(Results$individual[[i]])}
+    	row.orders[[i]] <- hclust(row.dist)$order
+  }}
+
+plot(hclust(col.dist))
+plot(hc,labels=dimneams(Proteome)[[2]],cex=0.5)
+
+col_order_new<-dimnames(Proteome)[[2]][col.order]
+
+  Image_Joint = list()
+for(i in 1:l){ Image_Joint[[i]] = as.matrix(Results$joint[[i]][row.orders[[1]],col.order]) }
+heatmap.2(Image_Joint[[1]],dendrogram='none', Rowv=FALSE, Colv=FALSE,trace='none', col=bluered(100),ColSideColors=subtypes)
+subtypes<-as.character(subtypes)
+heatmap.2(Image_Joint[[1]],dendrogram='none', col=bluered(100),ColSideColors=subtypes)
+
+heatmap(Image_Joint[[1]], cluster_rows = FALSE, cluster_columns = FALSE)
+dimnames(Image_Joint[[1]])[[2]]<-col_order_new
+my_palette <- colorRampPalette(c("blue","white","red"))(n = 100)
+heatmap(Image_Joint[[1]], Rowv = NA,col=my_palette)
+heatmap(Image_Joint[[1]], Rowv = NA, Colv = NA,col=bluered(100),ColSideColors=subtypes[col.order])
+
+############# this is the function in rjive
+library(fields)
+show.image = function(Image,ylab=''){
+  lower = mean(Image)-3*sd(Image)
+  upper = mean(Image)+3*sd(Image)
+  Image[Image<lower] = lower
+  Image[Image>upper] = upper
+  image.plot(x=1:dim(Image)[2], y=1:dim(Image)[1], z=t(Image), zlim = c(lower,upper),axes=FALSE,col=bluered(100),xlab="",ylab=ylab, add=FALSE)
+  axis(1, at=seq(1,40, length=40), labels=col_order_new,pos=0,lwd=0,las=2,cex.lab=0.1)
+} 
+show.image(Image_Joint[[2]])
+
+##############################################
+
+################ find the cell line types
+library(readxl)
+test<-read_excel("Driver_mut_vs_subtypes .xlsx")
+
+colnames(test)<-gsub("-", "", colnames(test)) 
+test.matrix<-as.matrix(test[,2:51])
+common_lines<-match(dimnames(Proteome)[[2]],dimnames(test.matrix)[[2]] )
+subtypes<- test.matrix[6,common_lines]
+subtypes<-as.integer(subtypes)
+
+attributes(subtypes)<-dimnames(Proteome)[[2]]
+
+Colors = rep('black',40)
+Colors[subtypes==2] = 'red'
+Colors[subtypes==3] = 'green'
+Colors[subtypes==4] = 'blue'
+Colors[subtypes==5] = 'cyan1'
+
+showPCA(Results,n_joint=2,Colors=Colors)
+showPCA(Results,n_joint=2,n_indiv=c(2,2),Colors=Colors)
+
+
+########PCA
+plot(SVD$d^2/sum(SVD$d^2), xlim = c(0, 5), type = "b", pch = 16, xlab = "principal components", 
+    ylab = "variance explained")
+########### separate the pca in each proteome and transcriptome)
+prot_PCA<-abs(SVD$u[1:length(dimnames(Proteome)[[1]]),1])
+which(prot_PCA==max(prot_PCA), arr.ind=TRUE)
+p<-head(sort(prot_PCA,decreasing=TRUE),10)
+o<-match(p,prot_PCA)
+jprot<-dimnames(Proteome)[[1]][o]
+
+
+trans_PCA<-abs(SVD$u[5219:10436,2])
+which(trans_PCA==max(trans_PCA), arr.ind=TRUE)
+p<-head(sort(trans_PCA,decreasing=TRUE),40)
+o<-match(p,trans_PCA)
+jtrans<-dimnames(Transcriptome)[[1]][o]
+
+intersect(jprot,jtrans)
+
+################################### look for the intersection
+biocLite("limma")
+library(limma)
+library(venn)
+venn(degree)
+install.packages('VennDiagram')
+library(VennDiagram)
+venn(degree)
+
+draw.pairwise.venn(40, 40, 18, category = c("Transcriptome", "Proteome"), lty = rep("blank", 
+    2), fill = c("light blue", "pink"), alpha = rep(0.5, 2), cat.pos = c(0, 
+    0), cat.dist = rep(0.025, 2))
+
+############################################################################### proteome
+
+
+Top_PCA_prot<-head(sort(prot_PCA,decreasing=TRUE),40)
+o<-match(Top_PCA_prot,prot_PCA)
+Top_prot<-dimnames(Proteome)[[1]][o]
+
+
+Down_PCA_prot<-tail(sort(prot_PCA,decreasing=TRUE), n=40)
+o<-match(Down_PCA_prot,prot_PCA)
+Down_prot<-dimnames(Proteome)[[1]][o]
+
+PCA_prot <- data.frame(Ensemble=c(Top_prot, Down_prot))
+PCA_prot$group <- "Down"
+temp<-length(Top_prot)
+PCA_prot$group[1:temp] <- "Top"
+PCA_prot$group<-as.factor(PCA_prot$group)
+
+library(clusterProfiler)
+
+library(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+
+xx.formula <- compareCluster(Ensemble~group, data=PCA_prot,universe = dimnames(Proteome)[[1]],
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL",ont="CC")
+as.data.frame(xx.formula)
+
+dotplot(xx.formula)
+
+ego_Down <- enrichGO(gene          = Top_prot,
+                universe      = dimnames(Proteome)[[1]],
+                OrgDb         = org.Hs.eg.db,
+                keyType = "ENSEMBL",
+                ont           = "CC",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.01,
+                qvalueCutoff  = 0.05,
+        readable      = TRUE)
+        
+head(ego_Down)
+ 
+dotplot(ego_Down)
+
+######################  ###################### check the same for the joint transcriptome####################################
+Top_PCA_trans<-head(sort(trans_PCA,decreasing=TRUE),40)
+o<-match(Top_PCA_trans,trans_PCA)
+Top_trans<-dimnames(Transcriptome)[[1]][o]
+
+Down_PCA_trans<-tail(sort(trans_PCA,decreasing=TRUE), n=40)
+o<-match(Down_PCA_trans,trans_PCA)
+Down_trans<-dimnames(Transcriptome)[[1]][o]
+
+PCA_trans <- data.frame(Ensemble=c(Top_trans, Down_trans))
+PCA_trans$group <- "Down"
+temp<-length(Top_trans)
+PCA_trans$group[1:temp] <- "Top"
+PCA_trans$group<-as.factor(PCA_trans$group)
+
+
+xx.formula_trans <- compareCluster(Ensemble~group, data=PCA_trans,universe = dimnames(Transcriptome)[[1]],
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL",ont="CC")
+as.data.frame(xx.formula_trans)
+
+dotplot(xx.formula_trans)
+
+ego_Down <- enrichGO(gene          = Top_trans,
+                universe      = dimnames(Proteome)[[1]],
+                OrgDb         = org.Hs.eg.db,
+                keyType = "ENSEMBL",
+                ont           = "CC",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.01,
+                qvalueCutoff  = 0.05,
+        readable      = TRUE)
+
+
+
+
+
+
+
+
+
+str(SVD$u)
+posi<-abs(SVD$u)
+which(posi[,1]==max(posi[,1]), arr.ind=TRUE)
+k<-rbind(Results$joint[[1]],Results$joint[[2]])
+p<-head(sort(posi[,1], decreasing=TRUE),10)
+o<-match(p,posi[,1])
+total<-rbind(Proteome,Transcriptome)
+
+dimnames(total)[[1]][o]
+
+
+Image_Joint[[1]][1,]
+Results$joint[[1]][1005,col.order]
+
+highy_variation<-dimnames(Proteome)[[1]][row.orders[[1]][1:622]]
+
+
+if(n_indiv[i]>0){
+    SVD = svd(result$individual[[i]],nu=n_indiv[i],nv=n_indiv[i])
+    indices = (n_joint+sum(n_indiv[0:(i-1)])+1):(n_joint+sum(n_indiv[0:i]))
+    PCs[indices,] = diag(SVD$d)[1:n_indiv[i],1:n_indiv[i]]%*%t(SVD$v[,1:n_indiv[i]])
+    PC_names[indices] = paste(names(result$data)[i]," Indiv ",1:n_indiv[i]) 
+
+
+p<-head(sort(posi[,1],decreasing=TRUE),50)
+oo<-match(p,posi[,1])
+dimnames(total)[[1]][oo]
+
+
+
+Top_mit_GO_rib<-head(Sort_corr,100)
+Down_mit_GO_rib<-tail(Sort_corr, n=100)
+
+
+mydf_mit_GO_rib <- data.frame(Ensemble=c(names(Top_mit_GO_rib),names(Down_mit_GO_rib)))
+mydf_mit_GO_rib$group <- "Down"
+temp<-length(names(Top_mit_GO_rib))
+mydf_mit_GO_rib$group[1:temp] <- "Top"
+mydf_mit_GO_rib$group<-as.factor(mydf_mit_GO_rib$group)
+
+library(clusterProfiler)
+
+library(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+
+xx.formula_mit_GO_rib <- compareCluster(Ensemble~group, data=mydf_mit_GO_rib,universe = names(Sort_corr),
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL",ont="CC")
+as.data.frame(xx.formula_mit_GO_rib)
+dotplot(xx.formula_mit_GO_rib,showCategory=15)
+dotplot(xx.formula_mit_GO_rib)
+###################################### PCA related to the bsulute value
+
+str(SVD$u)
+ABS<-abs(SVD$u[,1])
+which(ABS==max(ABS), arr.ind=TRUE)
+k<-c(corr,corr)
+p<-tail(sort(ABS),20)
+o<-match(p,ABS)
+
+pp<-head(sort(ABS),20)
+oo<-match(pp,ABS)
+
+
+total<-rbind(Proteome,Transcriptome)
+
+Top_mit_GO_rib<-dimnames(total)[[1]][o]
+Down_mit_GO_rib<-dimnames(total)[[1]][oo]
+
+mydf_mit_GO_rib <- data.frame(Ensemble=c(Top_mit_GO_rib,Down_mit_GO_rib))
+mydf_mit_GO_rib$group <- "Down"
+temp<-length(Top_mit_GO_rib)
+mydf_mit_GO_rib$group[1:temp] <- "Top"
+mydf_mit_GO_rib$group<-as.factor(mydf_mit_GO_rib$group)
+
+library(clusterProfiler)
+
+library(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+
+CC <- enrichGO(gene          = Top_mit_GO_rib,
+                universe      = dimnames(Proteome)[[1]],
+                OrgDb         = org.Hs.eg.db,
+                keyType = "ENSEMBL",
+                ont           = "CC",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.01,
+                qvalueCutoff  = 0.05,
+        readable      = TRUE)
+
+dotplot(CC)
+
+
+
+xx.formula_mit_GO_rib <- compareCluster(Ensemble~group, data=mydf_mit_GO_rib,universe = dimnames(Proteome)[[1]],
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL",ont="CC")
+as.data.frame(xx.formula_mit_GO_rib)
+dotplot(xx.formula_mit_GO_rib,showCategory=15)
+dotplot(xx.formula_mit_GO_rib)
+
+################ PCA related to individual proteome
+
+SVD_ind = svd(result$individual[[1]])
+ABS_ind<-abs(SVD_ind$u[,1])
+which(ABS_ind==max(ABS_ind), arr.ind=TRUE)
+k<-Results$data$Proteome
+p<-tail(sort(ABS_ind),10)
+o<-match(p,ABS_ind)
+pp<-head(sort(ABS_ind),10)
+oo<-match(pp,ABS_ind)
+Top_mit_GO_rib<-dimnames(Proteome)[[1]][o]
+Down_mit_GO_rib<-dimnames(Proteome)[[1]][oo]
+
+mydf_mit_GO_rib <- data.frame(Ensemble=c(Top_mit_GO_rib,Down_mit_GO_rib))
+mydf_mit_GO_rib$group <- "Down"
+temp<-length(Top_mit_GO_rib)
+mydf_mit_GO_rib$group[1:temp] <- "Top"
+mydf_mit_GO_rib$group<-as.factor(mydf_mit_GO_rib$group)
+
+xx.formula_mit_GO_rib <- compareCluster(Ensemble~group, data=mydf_mit_GO_rib, universe = dimnames(Proteome)[[1]],
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL",ont="CC")
+as.data.frame(xx.formula_mit_GO_rib)
+dotplot(xx.formula_mit_GO_rib,showCategory=15)
+dotplot(xx.formula_mit_GO_rib)
+
+
+################ PCA related to individual transcriptome
+
+SVD_ind_trans = svd(result$individual[[2]])
+ABS_ind_trans<-abs(SVD_ind_trans$u[,2])
+which(ABS_ind_trans==max(ABS_ind_trans), arr.ind=TRUE)
+p_trans<-tail(sort(ABS_ind_trans),100)
+o_trans<-match(p_trans,ABS_ind_trans)
+pp_trans<-head(sort(ABS_ind_trans),100)
+oo_trans<-match(pp_trans,ABS_ind_trans)
+Top_mit_GO_rib_trans<-dimnames(Transcriptome)[[1]][o_trans]
+Down_mit_GO_rib_trans<-dimnames(Transcriptome)[[1]][oo_trans]
+
+mydf_mit_GO_rib_trans <- data.frame(Ensemble=c(Top_mit_GO_rib_trans,Down_mit_GO_rib_trans))
+mydf_mit_GO_rib_trans$group <- "Down"
+temp<-length(Top_mit_GO_rib_trans)
+mydf_mit_GO_rib_trans$group[1:temp] <- "Top"
+mydf_mit_GO_rib_trans$group<-as.factor(mydf_mit_GO_rib_trans$group)
+
+xx.formula_mit_GO_rib_trans <- compareCluster(Ensemble~group, data=mydf_mit_GO_rib_trans, universe = dimnames(Transcriptome)[[1]],
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL", ont="BP)
+
+as.data.frame(xx.formula_mit_GO_rib_trans)
+dotplot(xx.formula_mit_GO_rib,showCategory=15)
+dotplot(xx.formula_mit_GO_rib_trans)
+
+
+
+
+
+
+
+
+
+
+##################    ################################## now make the correlation after remoing all of them######################
+
+d<-length(dimnames(Proteome)[[1]])
+
+corr<-c(rep(0,d))
+for(i in 1:d){
+
+ corr[i]<-cor(Proteome[i,],Transcriptome[i,],method="spearman")
+
+ } 
+ names(corr)<-dimnames(Proteome)[[1]]
+
+ Sort_corr<-sort(corr, decreasing = TRUE)
+
+library(ggplot2)
+Correlation<- Sort_corr
+index <- Sort_corr
+Gene<-c(1:length(corr))
+
+qplot(Gene,Correlation, colour=index) + scale_colour_gradient(limits=c(-0.5, 1),low="blue", high="red")+ggtitle("Gene / Protein Spearman Correlation")+theme(plot.title = element_text(hjust = 0.5))+ ylim(-0.5,1)
+######################################################### lets see the GO
+Top_mit_GO_rib<-head(Sort_corr,500)
+Down_mit_GO_rib<-tail(Sort_corr, n=500)
+
+
+mydf_mit_GO_rib <- data.frame(Ensemble=c(names(Top_mit_GO_rib),names(Down_mit_GO_rib)))
+mydf_mit_GO_rib$group <- "Down"
+temp<-length(names(Top_mit_GO_rib))
+mydf_mit_GO_rib$group[1:temp] <- "Top"
+mydf_mit_GO_rib$group<-as.factor(mydf_mit_GO_rib$group)
+
+library(clusterProfiler)
+
+library(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+
+xx.formula_mit_GO_rib <- compareCluster(Ensemble~group, data=mydf_mit_GO_rib,universe = names(Sort_corr),
+fun='enrichGO', OrgDb='org.Hs.eg.db',keyType = "ENSEMBL",ont="CC")
+as.data.frame(xx.formula_mit_GO_rib)
+dotplot(xx.formula_mit_GO_rib,showCategory=15)
+dotplot(xx.formula_mit_GO_rib)
+
+p<-which(names(corr_GDSC_mit_Go_Rib)=="ENSG00000134480")  #### chromosomal region######
+plot(GDSC_mit_Go_rib[p,],proteomics_matrix_mit_Go_rib[p,],xlab="mRNA",ylab="proteomics")
+xx.formula_mit_GO_rib@compareClusterResult[1,]
+
+p<-which(names(corr_GDSC_mit_Go_Rib)=="ENSG00000051180")  #### chromosomal region######
+
+plot(GDSC_mit_Go_rib[p,],proteomics_matrix_mit_Go_rib[p,],xlab="mRNA",ylab="proteomics",main="RBMS1, rhh=0.93" )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+################################ Multiple Co-inertia
+
+
+COREAD_Genetech<-read.table(gzfile("COREAD_Genetech.txt.gz"),header=TRUE,sep="\t")
+Genetech_matrix<-as.matrix(COREAD_Genetech[,1:28])
+
+COREAD_CCLE<-read.table(gzfile("COREAD_CCLE.txt.gz"),header=TRUE,sep="\t")
+CCLE_matrix<-as.matrix(COREAD_CCLE[,1:40])
+
+COREAD_proteome<-read.table("COREAD_proteome_43lines.txt", sep="\t",header=TRUE)
+proteome_matrix<-as.matrix(COREAD_proteome[,1:43])
+dimnames(proteome_matrix)[[1]]<-COREAD_proteome$Gene.ID
+NAN<-rowSums(is.na(proteome_matrix))
+table(NAN)
+pep<-which(NAN==0)
+################### all protein presented ###############
+proteome_NANreduced<-proteome_matrix[pep,]
+
+
+#Data_RNA_total<-read.table(gzfile("Data_RNA_total.txt.gz"),header=TRUE,sep="\t")
+#Data_RNA_transformed<-read.table(gzfile("Data_RNA_transformed.txt"),header=TRUE,sep="\t")
+
+########################### Gene Protein correlation #######################
+                            make the same cell lines and genes for CCLE and proteins
+############################################################################
+str(proteome_NANreduced)
+#match_cell_line<-match(dimnames(CCLE_matrix)[[2]],dimnames(proteome_NANreduced)[[2]])
+proteome_NANreduced_CCLE<-proteome_NANreduced[,1:40]
+match_gene<-match(dimnames(proteome_NANreduced_CCLE)[[1]],dimnames(CCLE_matrix)[[1]])
+CCLE_proteome<-CCLE_matrix[match_gene,]
+
+str(proteome_NANreduced_CCLE)
+str(CCLE_proteome)
+##### nan produced remove non reliable genes 
+zeros<-rowSums(CCLE_proteome==0)
+table(zeros)
+k<-which(zeros==0)
+CCLE_proteome<-CCLE_proteome[k,]
+proteome_NANreduced_CCLE<-proteome_NANreduced_CCLE[k,]
+
+str(proteome_NANreduced_CCLE)
+str(CCLE_proteome)
+
+str(CCLE_proteome)
+Row_mean<-rowMeans(CCLE_proteome)
+Row_mean_extracted<-(CCLE_proteome/Row_mean)
+multiplication<-Row_mean_extracted*100
+############### make CCLE and proteome  comparable ############
+str(CCLE_proteome)
+Row_mean<-rowMeans(CCLE_proteome)
+Row_mean_extracted<-(CCLE_proteome/Row_mean)
+multiplication<-Row_mean_extracted*100
+
+#d<-length(dimnames(CCLE_proteome)[[1]])
+
+#corr<-c(rep(0,d))
+#for(i in 1:d){
+
+ #corr[i]<-cor(proteome_NANreduced_CCLE[i,],multiplication[i,],method="spearman")
+
+ #} 
+ #names(corr)<-dimnames(proteome_NANreduced_CCLE)[[1]]
+ 
+ str(proteome_NANreduced_CCLE)
+ str(multiplication)
+ 
+ Transcriptome<-multiplication
+ Proteome<-proteome_NANreduced_CCLE
+ 
+ 
+ str(Transcriptome)
+ str(Proteome)
+ 
+ Proteome<-as.data.frame(Proteome)
+ Transcriptome<-as.data.frame(Transcriptome)
+ 
+ 
+ x <- list(Proteome, Transcriptome)
+ names(x)<-c("Proteome","Transcriptome")
+sapply(x, dim)
+
+
+
+layout(matrix(1:4, 1, 4))
+par(mar=c(2, 1, 0.1, 6))
+for (df in x) {
+d <- dist(t(df))
+ hcl <- hclust(d)
+ dend <- as.dendrogram(hcl)
+ plot(dend, horiz=TRUE)
+ }
+ 
+ library(omicade4)
+ mcoin <- mcia(x, cia.nf=10)
+ class(mcoin)
+ 
+cancer_type <- colnames(x$Proteome)
+cancer_type <- sapply(strsplit(cancer_type, split="\\."), function(x) x[1])
+cancer_type
+ plot(mcoin, axes=1:2, phenovec=cancer_type, sample.lab=FALSE, df.color=1:4)
+ 
+
+
+#################################### check again only for the highly correlated genes and proteins how is the plot #########
+no i can see how is the same srcture of the same time for the mots interesting vision 
+
+d<-length(dimnames(Proteome)[[1]])
+
+corr<-c(rep(0,d))
+for(i in 1:d){
+
+ corr[i]<-cor(Proteome[i,],Transcriptome[i,],method="spearman")
+
+ } 
+ names(corr)<-dimnames(Proteome)[[1]]
+
+ Sort_corr<-sort(corr, decreasing = TRUE)
+
+library(ggplot2)
+Correlation<- Sort_corr
+index <- Sort_corr
+Gene<-c(1:length(corr))
+
+qplot(Gene,Correlation, colour=index) + scale_colour_gradient(limits=c(-0.5, 1),low="blue", high="red")+ggtitle("Gene / Protein Spearman Correlation")+theme(plot.title = element_text(hjust = 0.5))+ ylim(-0.5,1)
+
+high_corr<- which(corr<=0.3)
+
+high_corr_prot<-Proteome[high_corr,]
+high_corr_trans<-Transcriptome[high_corr,]
+
+library(r.jive)
+ Data_test_high_corr<- list(high_corr_prot,high_corr_trans)
+ names(Data_test_high_corr)<-c("Proteome","Transcriptome")
+ Results_high = jive(Data_test_high_corr)
+ 
+ str(Results_high)
+ 
+#heatmap((Results$joint)[[1]])
+#heatmap(Results$data$Proteome)
+
+
+################## visualization ################### 
+png("VarExplained.png",height=300,width=450)  
+showVarExplained( Results_high)  
+dev.off()
+
+
+png("HeatmapsBRCA.png",height=465,width=705)
+showHeatmaps( Results_high, order_by=0)  #### the matrices are not re-ordered  If  order_by=0, orderings are determined by joint structure
+                  
+
+
+
+
+
